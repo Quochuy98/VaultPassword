@@ -1,18 +1,30 @@
+# Deploy Vite + React to GitHub Pages
+# Repo: https://github.com/Quochuy98/VaultPassword
+# Live site (project Pages): https://quochuy98.github.io/VaultPassword/
+# No repo URL is required in this file — runs in the repository that contains it.
+# Triggers: push to branch "deploy" (see vite.config.ts base: '/VaultPassword/')
+
 name: Deploy React App to Pages
 
 on:
     push:
-        branches: [ "deploy" ] # Tự động chạy khi push vào nhánh deploy
+        branches: ["deploy"]
     workflow_dispatch:
-        # Cho phép chạy thủ công nếu muốn
 
 permissions:
     contents: read
     pages: write
     id-token: write
 
+concurrency:
+    group: "pages"
+    cancel-in-progress: false
+
 jobs:
     build_and_deploy:
+        environment:
+            name: github-pages
+            url: ${{ steps.deployment.outputs.page_url }}
         runs-on: ubuntu-latest
         steps:
             - name: Checkout code
@@ -25,10 +37,13 @@ jobs:
                   cache: "npm"
 
             - name: Install dependencies
-              run: npm install
+              run: npm ci
 
-            - name: Build project
+            - name: Build project (Vite → dist)
               run: npm run build
+
+            - name: SPA fallback for GitHub Pages
+              run: cp dist/index.html dist/404.html
 
             - name: Setup Pages
               uses: actions/configure-pages@v4
@@ -36,7 +51,7 @@ jobs:
             - name: Upload artifact
               uses: actions/upload-pages-artifact@v3
               with:
-                  path: "./dist" # Nếu là Vite dùng 'dist', nếu là Create React App dùng 'build'
+                  path: "./dist"
 
             - name: Deploy to GitHub Pages
               id: deployment

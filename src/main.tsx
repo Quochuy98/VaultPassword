@@ -5,9 +5,12 @@ import App from './App.tsx';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
 
+/** Match Vite `base` (e.g. /VaultPassword/ for GitHub project Pages). Router wants no trailing slash. */
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '') || '/';
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename === '/' ? undefined : routerBasename}>
       <AuthProvider>
         <App />
       </AuthProvider>
