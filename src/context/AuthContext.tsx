@@ -20,6 +20,8 @@ import {
 const VAULT_SALT_META_KEY = 'vault_salt';
 const VAULT_UNLOCK_TTL_MS = 5 * 60 * 1000;
 const SESSION_TTL_MS = 60 * 60 * 1000;
+const VAULT_PASSPHRASE_CACHE_KEY = 'vault_passphrase_cache';
+const VAULT_PASSPHRASE_CACHE_EXP_KEY = 'vault_passphrase_cache_exp';
 
 type AuthContextValue = {
   supabase: SupabaseClient;
@@ -82,6 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const lockVault = useCallback(() => {
     setVaultKey(null);
+    window.sessionStorage.removeItem(VAULT_PASSPHRASE_CACHE_KEY);
+    window.sessionStorage.removeItem(VAULT_PASSPHRASE_CACHE_EXP_KEY);
   }, []);
 
   useEffect(() => {
@@ -93,7 +97,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     vaultLockTimerRef.current = window.setTimeout(() => {
-      setVaultKey(null);
+      lockVault();
     }, VAULT_UNLOCK_TTL_MS);
     return () => {
       if (vaultLockTimerRef.current) {
@@ -101,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         vaultLockTimerRef.current = null;
       }
     };
-  }, [vaultKey]);
+  }, [vaultKey, lockVault]);
 
   const unlockVault = useCallback(
     async (masterPassword: string) => {
@@ -128,6 +132,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const salt = base64ToSalt(saltB64);
         const key = await deriveKeyFromPassword(masterPassword, salt);
         setVaultKey(key);
+        window.sessionStorage.setItem(VAULT_PASSPHRASE_CACHE_KEY, masterPassword);
+        window.sessionStorage.setItem(
+          VAULT_PASSPHRASE_CACHE_EXP_KEY,
+          String(Date.now() + VAULT_UNLOCK_TTL_MS),
+        );
         return { error: null };
       } catch {
         return { error: new Error('Không thể tạo khóa mã hóa') };
@@ -224,13 +233,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase]);
 
+  useEffect(() => {
+    if (!session?.user || vaultKey) {
+      return;
+    }
+
+    const cachedPassphrase = window.sessionStorage.getItem(VAULT_PASSPHRASE_CACHE_KEY);
+    const cachedExp = Number(window.sessionStorage.getItem(VAULT_PASSPHRASE_CACHE_EXP_KEY) ?? '0');
+
+    if (!cachedPassphrase || !Number.isFinite(cachedExp) || Date.now() >= cachedExp) {
+      window.sessionStorage.removeItem(VAULT_PASSPHRASE_CACHE_KEY);
+      window.sessionStorage.removeItem(VAULT_PASSPHRASE_CACHE_EXP_KEY);
+      return;
+    }
+
+    void unlockVault(cachedPassphrase);
+  }, [session?.user, vaultKey, unlockVault]);
+
   const signOut = useCallback(async () => {
-    setVaultKey(null);
+    lockVault();
     await supabase.auth.signOut();
     const defaultClient = createSupabaseAuthClient(true);
     setSupabase(defaultClient);
     setSession(null);
-  }, [supabase]);
+  }, [supabase, lockVault]);
 
   useEffect(() => {
     if (sessionTimeoutRef.current) {
