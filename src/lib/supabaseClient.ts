@@ -1,12 +1,14 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL;
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-if (!url || !anonKey) {
-  throw new Error(
-    'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and set your Supabase project credentials.',
-  );
+/**
+ * True when Vite embedded non-empty Supabase URL + anon key at build time.
+ * Avoid throwing at module load so the app can show a config screen instead of a blank page.
+ */
+export function isSupabaseConfigured(): boolean {
+  return Boolean(url?.trim() && anonKey?.trim());
 }
 
 /**
@@ -14,7 +16,12 @@ if (!url || !anonKey) {
  * Public / kiosk mode uses in-memory sessions only (persistSession: false).
  */
 export function createSupabaseAuthClient(persistSession: boolean): SupabaseClient {
-  return createClient(url, anonKey, {
+  if (!isSupabaseConfigured()) {
+    throw new Error(
+      'Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and set your Supabase project credentials.',
+    );
+  }
+  return createClient(url!, anonKey!, {
     auth: {
       persistSession,
       autoRefreshToken: persistSession,
