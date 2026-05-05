@@ -1028,10 +1028,11 @@ export default function App() {
         <Route path="/login" element={<LoginScreen onNotify={pushNotify} />} />
         <Route path="/2fa" element={<TwoFactorScreen />} />
         <Route element={<ProtectedRoute />}>
-          <Route element={<VaultGate />}>
-            <Route path="/dashboard" element={dashboardPage} />
+
+        <Route path="/dashboard" element={dashboardPage} />
             <Route path="/settings" element={settingsPage} />
-          </Route>
+          {/* <Route element={<VaultGate />}>
+          </Route> */}
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
