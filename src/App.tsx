@@ -558,6 +558,7 @@ export default function App() {
   const [modalLogin, setModalLogin] = useState('');
   const [modalPassword, setModalPassword] = useState('');
   const [modalNotes, setModalNotes] = useState('');
+  const [showModalPassword, setShowModalPassword] = useState(false);
   const [vaultPassCurrent, setVaultPassCurrent] = useState('');
   const [vaultPassNext, setVaultPassNext] = useState('');
   const [vaultPassConfirm, setVaultPassConfirm] = useState('');
@@ -651,6 +652,7 @@ export default function App() {
   const closeVaultModal = () => {
     setIsModalOpen(false);
     setEditingItem(null);
+    setShowModalPassword(false);
   };
 
   // Close modal on Escape key press
@@ -833,7 +835,10 @@ export default function App() {
       setVaultPassNext('');
       setVaultPassConfirm('');
       pushNotify('Đã đổi mật khẩu vault thành công.', 'success');
-      await refreshVaultItems();
+      // After successful rotation, require user to re-enter the new vault passphrase.
+      window.setTimeout(() => {
+        lockVault();
+      }, 1200);
     } catch {
       pushNotify('Đổi mật khẩu vault thất bại. Kiểm tra mật khẩu hiện tại.', 'error');
     } finally {
@@ -1299,14 +1304,18 @@ export default function App() {
                         </div>
                         <div className="relative group">
                           <input 
-                            type="password" 
+                            type={showModalPassword ? 'text' : 'password'} 
                             value={modalPassword}
                             onChange={(e) => setModalPassword(e.target.value)}
                             placeholder="••••••••" 
                             className="w-full pl-4 pr-12 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm"
                           />
-                          <button type="button" className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors">
-                            <Eye className="w-5 h-5" />
+                          <button
+                            type="button"
+                            onClick={() => setShowModalPassword((v) => !v)}
+                            className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            {showModalPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                           </button>
                         </div>
                       </div>
