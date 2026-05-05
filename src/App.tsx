@@ -133,7 +133,7 @@ const Input = ({ label, icon: Icon, error, ...props }: any) => (
   </div>
 );
 
-const Navbar = ({ onOpenSettings, currentTab }: { onOpenSettings: () => void, currentTab: Screen }) => (
+const Navbar = ({ onOpenSettings, currentTab, searchQuery, setSearchQuery }: { onOpenSettings: () => void, currentTab: Screen, searchQuery: string, setSearchQuery: (q: string) => void }) => (
   <nav className="sticky top-0 z-40 w-full bg-white border-b border-outline-variant/60 px-6 h-16 flex items-center justify-between shadow-sm">
     <div className="flex items-center gap-3">
       <div className="bg-primary text-white p-2 rounded-lg md:hidden">
@@ -147,6 +147,9 @@ const Navbar = ({ onOpenSettings, currentTab }: { onOpenSettings: () => void, cu
         <Search className="w-4 h-4 text-slate-400" />
       </div>
       <input 
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
         className="w-full bg-slate-50 border border-slate-200 rounded-lg py-2 pl-10 pr-4 text-sm placeholder:text-slate-400 focus:bg-white focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none" 
         placeholder="Tìm kiếm dự án, mật khẩu..." 
       />
@@ -245,6 +248,7 @@ export default function App() {
   const [modalTab, setModalTab] = useState<'password' | 'card'>('password');
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(''));
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Sync modal tab with editing item type
@@ -288,6 +292,16 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isModalOpen]);
+
+  // Auto focus first OTP input when arriving at TOTP screen
+  useEffect(() => {
+    if (screen === 'totp') {
+      const timer = setTimeout(() => {
+        otpRefs.current[0]?.focus();
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [screen]);
 
   const handleAddNew = () => {
     setEditingItem(null);
@@ -467,15 +481,33 @@ export default function App() {
         );
 
       case 'dashboard':
+        const filteredItems = MOCK_ITEMS.filter(item => {
+          const query = searchQuery.toLowerCase();
+          return (
+            item.title.toLowerCase().includes(query) ||
+            (item.email && item.email.toLowerCase().includes(query)) ||
+            (item.username && item.username.toLowerCase().includes(query)) ||
+            (item.cardHolder && item.cardHolder.toLowerCase().includes(query)) ||
+            (item.cardNumber && item.cardNumber.includes(query))
+          );
+        });
+
         return (
           <div className="min-h-screen flex flex-col bg-surface overflow-hidden">
-            <Navbar onOpenSettings={() => setScreen('settings')} currentTab="dashboard" />
+            <Navbar 
+              onOpenSettings={() => setScreen('settings')} 
+              currentTab="dashboard" 
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+            />
             <div className="flex flex-1 overflow-hidden">
               <Sidebar currentTab="dashboard" setScreen={setScreen} onAddNew={handleAddNew} />
               <main className="flex-1 overflow-y-auto p-6 md:p-8">
                 <div className="max-w-6xl mx-auto">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-                    <h1 className="text-2xl md:text-3xl font-bold text-on-surface tracking-tight">Mật khẩu của tôi</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-on-surface tracking-tight">
+                      {searchQuery ? `Kết quả cho "${searchQuery}"` : 'Mật khẩu của tôi'}
+                    </h1>
                     <Button onClick={handleAddNew} className="gap-2 h-10 md:h-12 px-6">
                       <Plus className="w-5 h-5" />
                       <span className="hidden sm:inline">Thêm mật khẩu</span>
@@ -483,8 +515,17 @@ export default function App() {
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {MOCK_ITEMS.map((item) => (
+                  {filteredItems.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-slate-50 rounded-[2.5rem] border border-dashed border-slate-200">
+                      <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                        <Search className="w-8 h-8 text-slate-300" />
+                      </div>
+                      <h3 className="text-lg font-bold text-slate-900">Không tìm thấy kết quả</h3>
+                      <p className="text-slate-500 text-sm">Thử với từ khóa khác xem sao!</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {filteredItems.map((item) => (
                       <motion.div 
                         key={item.id}
                         initial={{ opacity: 0, y: 12 }}
@@ -579,6 +620,7 @@ export default function App() {
                       </motion.div>
                     ))}
                   </div>
+                )}
                 </div>
               </main>
             </div>
@@ -588,7 +630,12 @@ export default function App() {
       case 'settings':
         return (
           <div className="min-h-screen flex flex-col bg-surface overflow-hidden">
-            <Navbar onOpenSettings={() => setScreen('settings')} currentTab="settings" />
+            <Navbar 
+              onOpenSettings={() => setScreen('settings')} 
+              currentTab="settings" 
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+            />
             <div className="flex flex-1 overflow-hidden">
               <Sidebar currentTab="settings" setScreen={setScreen} onAddNew={handleAddNew} />
               <main className="flex-1 overflow-y-auto p-4 md:p-8">
