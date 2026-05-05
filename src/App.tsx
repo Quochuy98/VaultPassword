@@ -48,7 +48,7 @@ type MainTab = 'dashboard' | 'settings';
 
 interface VaultItem {
   id: string;
-  type: 'password' | 'card';
+  type: 'password' | 'card' | 'personal';
   title: string;
   username?: string;
   email?: string;
@@ -57,24 +57,139 @@ interface VaultItem {
   cardNumber?: string;
   cardHolder?: string;
   expiry?: string;
+  cvv?: string;
+  personalId?: string;
+  fullName?: string;
+  phone?: string;
+  address?: string;
   icon?: string;
   color?: string;
 }
 
+type VisualMeta = { icon?: string; color?: string };
+
+const WEBSITE_VISUALS: Array<{ keywords: string[]; icon: string; color?: string }> = [
+  {
+    keywords: ['google', 'gmail'],
+    icon: 'https://cdn.simpleicons.org/google/4285F4',
+  },
+  {
+    keywords: ['facebook', 'fb'],
+    icon: 'https://cdn.simpleicons.org/facebook/1877F2',
+    color: '#1877F2',
+  },
+  {
+    keywords: ['github'],
+    icon: 'https://cdn.simpleicons.org/github/181717',
+  },
+  {
+    keywords: ['fconline', 'fc online', 'ea sports fc'],
+    icon: 'https://cdn.simpleicons.org/ea/0047AB',
+    color: '#0047AB',
+  },
+];
+
+function resolveWebsiteVisual(title: string): VisualMeta {
+  const normalized = title.toLowerCase().trim();
+  const matched = WEBSITE_VISUALS.find((v) =>
+    v.keywords.some((keyword) => normalized.includes(keyword)),
+  );
+  return matched ? { icon: matched.icon, color: matched.color } : {};
+}
+
+function detectCardBrand(cardNumber: string, title?: string): string {
+  const digits = cardNumber.replace(/\D/g, '');
+  if (/^4\d{12}(\d{3})?(\d{3})?$/.test(digits)) return 'visa';
+  if (
+    /^(5[1-5]\d{14}|2(?:2[2-9]\d{12}|[3-6]\d{13}|7[01]\d{12}|720\d{12}))$/.test(
+      digits,
+    )
+  ) {
+    return 'mastercard';
+  }
+  if (/^3[47]\d{13}$/.test(digits)) return 'amex';
+  if (/^(?:2131|1800|35\d{3})\d{11}$/.test(digits)) return 'jcb';
+  if (/^6(?:011|5\d{2})\d{12}$/.test(digits)) return 'discover';
+
+  const titleText = (title ?? '').toLowerCase();
+  if (titleText.includes('visa')) return 'visa';
+  if (titleText.includes('mastercard') || titleText.includes('master card')) return 'mastercard';
+  if (titleText.includes('amex') || titleText.includes('american express')) return 'amex';
+  if (titleText.includes('jcb')) return 'jcb';
+  if (titleText.includes('discover')) return 'discover';
+  return 'generic';
+}
+
+function resolveCardVisual(cardNumber: string, title?: string): VisualMeta {
+  const brand = detectCardBrand(cardNumber, title);
+  if (brand === 'visa') {
+    return { icon: 'https://cdn.simpleicons.org/visa/1A1F71', color: '#1A1F71' };
+  }
+  if (brand === 'mastercard') {
+    return { icon: 'https://cdn.simpleicons.org/mastercard/EB001B', color: '#EB001B' };
+  }
+  if (brand === 'amex') {
+    return { icon: 'https://cdn.simpleicons.org/americanexpress/2E77BC', color: '#2E77BC' };
+  }
+  if (brand === 'jcb') {
+    return { icon: 'https://cdn.simpleicons.org/jcb/0C4DA2', color: '#0C4DA2' };
+  }
+  if (brand === 'discover') {
+    return { icon: 'https://cdn.simpleicons.org/discover/F76A00', color: '#F76A00' };
+  }
+  return { color: '#334155' };
+}
+
 async function decryptRowToVaultItem(row: PasswordRow, key: CryptoKey): Promise<VaultItem> {
-  const password = await decrypt(row.encrypted_password, row.iv_password, key);
+  const mainSecret = await decrypt(row.encrypted_password, row.iv_password, key);
   let notes: string | undefined;
+  let meta: any = {};
   if (row.encrypted_notes && row.iv_notes) {
     notes = await decrypt(row.encrypted_notes, row.iv_notes, key);
+    try {
+      meta = JSON.parse(notes);
+    } catch {
+      meta = {};
+    }
+  }
+  const kind = meta.kind as 'password' | 'card' | 'personal' | undefined;
+  if (kind === 'card') {
+    const cardVisual = resolveCardVisual(mainSecret, row.website);
+    return {
+      id: row.id,
+      type: 'card',
+      title: row.website,
+      cardHolder: row.username,
+      cardNumber: mainSecret,
+      expiry: meta.expiry,
+      cvv: meta.cvv,
+      notes: meta.notes,
+      ...cardVisual,
+    };
+  }
+  if (kind === 'personal') {
+    return {
+      id: row.id,
+      type: 'personal',
+      title: row.website,
+      fullName: row.username,
+      personalId: mainSecret,
+      email: meta.email,
+      phone: meta.phone,
+      address: meta.address,
+      notes: meta.notes,
+    };
   }
   const login = row.username;
+  const visual = resolveWebsiteVisual(row.website);
   return {
     id: row.id,
     type: 'password',
     title: row.website,
     ...(login.includes('@') ? { email: login } : { username: login }),
-    password,
-    notes,
+    password: mainSecret,
+    notes: notes && !notes.trim().startsWith('{') ? notes : meta.notes,
+    ...visual,
   };
 }
 
@@ -549,7 +664,7 @@ export default function App() {
   const [toast, setToast] = useState<{ message: string; kind: 'copy' | 'success' | 'error' } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<VaultItem | null>(null);
-  const [modalTab, setModalTab] = useState<'password' | 'card'>('password');
+  const [modalTab, setModalTab] = useState<'password' | 'card' | 'personal'>('password');
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [vaultItems, setVaultItems] = useState<VaultItem[]>([]);
@@ -558,6 +673,15 @@ export default function App() {
   const [modalLogin, setModalLogin] = useState('');
   const [modalPassword, setModalPassword] = useState('');
   const [modalNotes, setModalNotes] = useState('');
+  const [modalCardHolder, setModalCardHolder] = useState('');
+  const [modalCardNumber, setModalCardNumber] = useState('');
+  const [modalCardExpiry, setModalCardExpiry] = useState('');
+  const [modalCardCvv, setModalCardCvv] = useState('');
+  const [modalPersonalId, setModalPersonalId] = useState('');
+  const [modalPersonalFullName, setModalPersonalFullName] = useState('');
+  const [modalPersonalEmail, setModalPersonalEmail] = useState('');
+  const [modalPersonalPhone, setModalPersonalPhone] = useState('');
+  const [modalPersonalAddress, setModalPersonalAddress] = useState('');
   const [showModalPassword, setShowModalPassword] = useState(false);
   const [vaultPassCurrent, setVaultPassCurrent] = useState('');
   const [vaultPassNext, setVaultPassNext] = useState('');
@@ -627,11 +751,29 @@ export default function App() {
       setModalLogin(editingItem.email ?? editingItem.username ?? '');
       setModalPassword(editingItem.password ?? '');
       setModalNotes(editingItem.notes ?? '');
+      setModalCardHolder(editingItem.cardHolder ?? '');
+      setModalCardNumber(editingItem.cardNumber ?? '');
+      setModalCardExpiry(editingItem.expiry ?? '');
+      setModalCardCvv(editingItem.cvv ?? '');
+      setModalPersonalId(editingItem.personalId ?? '');
+      setModalPersonalFullName(editingItem.fullName ?? '');
+      setModalPersonalEmail(editingItem.email ?? '');
+      setModalPersonalPhone(editingItem.phone ?? '');
+      setModalPersonalAddress(editingItem.address ?? '');
     } else {
       setModalTitle('');
       setModalLogin('');
       setModalPassword('');
       setModalNotes('');
+      setModalCardHolder('');
+      setModalCardNumber('');
+      setModalCardExpiry('');
+      setModalCardCvv('');
+      setModalPersonalId('');
+      setModalPersonalFullName('');
+      setModalPersonalEmail('');
+      setModalPersonalPhone('');
+      setModalPersonalAddress('');
     }
   }, [isModalOpen, editingItem]);
 
@@ -675,29 +817,67 @@ export default function App() {
 
   const handleSaveVault = async () => {
     if (!user || !vaultKey) return;
-    if (modalTab === 'card') {
-      pushNotify('Đồng bộ thẻ thanh toán sẽ có trong phiên bản sau. Hiện chỉ lưu mục mật khẩu.', 'error');
-      return;
-    }
-    if (!modalTitle.trim() || !modalLogin.trim()) {
-      pushNotify('Vui lòng nhập tên gợi nhớ và tên đăng nhập / email.', 'error');
-      return;
-    }
 
     try {
-      const encPw = await encrypt(modalPassword, vaultKey);
+      let website = '';
+      let username = '';
+      let secret = '';
+      let metadata: Record<string, string> = { kind: modalTab };
+
+      if (modalTab === 'password') {
+        if (!modalTitle.trim() || !modalLogin.trim()) {
+          pushNotify('Vui lòng nhập tên gợi nhớ và tên đăng nhập / email.', 'error');
+          return;
+        }
+        website = modalTitle.trim();
+        username = modalLogin.trim();
+        secret = modalPassword;
+        metadata = { kind: 'password', notes: modalNotes.trim() };
+      } else if (modalTab === 'card') {
+        if (!modalTitle.trim() || !modalCardHolder.trim() || !modalCardNumber.trim()) {
+          pushNotify('Vui lòng nhập tên thẻ, chủ thẻ và số thẻ.', 'error');
+          return;
+        }
+        website = modalTitle.trim();
+        username = modalCardHolder.trim();
+        secret = modalCardNumber.trim();
+        metadata = {
+          kind: 'card',
+          expiry: modalCardExpiry.trim(),
+          cvv: modalCardCvv.trim(),
+          notes: modalNotes.trim(),
+        };
+      } else {
+        if (!modalTitle.trim() || !modalPersonalFullName.trim() || !modalPersonalId.trim()) {
+          pushNotify('Vui lòng nhập tên hồ sơ, họ tên và mã định danh.', 'error');
+          return;
+        }
+        website = modalTitle.trim();
+        username = modalPersonalFullName.trim();
+        secret = modalPersonalId.trim();
+        metadata = {
+          kind: 'personal',
+          email: modalPersonalEmail.trim(),
+          phone: modalPersonalPhone.trim(),
+          address: modalPersonalAddress.trim(),
+          notes: modalNotes.trim(),
+        };
+      }
+
+      const encPw = await encrypt(secret, vaultKey);
       let encrypted_notes: string | null = null;
       let iv_notes: string | null = null;
-      if (modalNotes.trim()) {
-        const n = await encrypt(modalNotes, vaultKey);
+      const metaText = JSON.stringify(metadata);
+      if (metaText.trim()) {
+        const n = await encrypt(metaText, vaultKey);
         encrypted_notes = n.ciphertext;
         iv_notes = n.iv;
       }
 
       if (editingItem) {
         const { error } = await updatePassword(supabase, editingItem.id, {
-          website: modalTitle.trim(),
-          username: modalLogin.trim(),
+          website,
+          username,
           encrypted_password: encPw.ciphertext,
           iv_password: encPw.iv,
           encrypted_notes,
@@ -709,8 +889,8 @@ export default function App() {
         }
       } else {
         const { error } = await addPassword(supabase, user.id, {
-          website: modalTitle.trim(),
-          username: modalLogin.trim(),
+          website,
+          username,
           encrypted_password: encPw.ciphertext,
           iv_password: encPw.iv,
           encrypted_notes,
@@ -990,10 +1170,10 @@ export default function App() {
                         <div className="space-y-1 mb-6">
                            <h3 className="font-bold text-slate-900 text-lg group-hover:text-primary transition-colors truncate">{item.title}</h3>
                            <div className="flex items-center gap-2 group-hover:translate-x-1 transition-transform min-w-0">
-                             <p className="text-sm text-slate-500 font-medium truncate">{item.email || item.username || item.cardHolder}</p>
+                             <p className="text-sm text-slate-500 font-medium truncate">{item.email || item.username || item.cardHolder || item.fullName || item.personalId}</p>
                              <button
                                type="button"
-                               onClick={(e) => handleCopy(e, item.email || item.username || item.cardHolder)}
+                               onClick={(e) => handleCopy(e, item.email || item.username || item.cardHolder || item.fullName || item.personalId)}
                                className="text-slate-400 hover:text-primary p-0.5 rounded transition-colors shrink-0"
                              >
                                <Copy className="w-3.5 h-3.5" />
@@ -1003,10 +1183,10 @@ export default function App() {
 
                         <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
                           <div className="flex-1 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg text-xs text-slate-600 font-mono tracking-tight border border-slate-100 shadow-inner overflow-hidden">
-                            <span className="truncate">{maskSecret(item.password || item.cardNumber)}</span>
+                            <span className="truncate">{maskSecret(item.password || item.cardNumber || item.personalId)}</span>
                             <button
                               type="button"
-                              onClick={(e) => handleCopy(e, item.password || item.cardNumber)}
+                              onClick={(e) => handleCopy(e, item.password || item.cardNumber || item.personalId)}
                               className="text-slate-400 hover:text-primary p-0.5 rounded transition-colors shrink-0 ml-auto"
                             >
                               <Copy className="w-3 h-3" />
@@ -1234,7 +1414,7 @@ export default function App() {
               exit={{ opacity: 0, scale: 0.9, y: 20 }}
               className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
             >
-              <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
+              {/* <div className="flex items-center justify-between px-8 py-6 border-b border-slate-100">
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
                     {editingItem ? <ShieldCheck className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
@@ -1243,7 +1423,7 @@ export default function App() {
                 <Button variant="ghost" onClick={closeVaultModal} className="p-2 rounded-full hover:bg-slate-100">
                   <X className="w-5 h-5 text-slate-400" />
                 </Button>
-              </div>
+              </div> */}
 
               <div className="p-8 space-y-6">
                 <div className="flex p-1.5 bg-slate-100 rounded-xl">
@@ -1260,6 +1440,13 @@ export default function App() {
                     className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${modalTab === 'card' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-900 disabled:opacity-50'}`}
                   >
                     Thẻ thanh toán
+                  </button>
+                  <button
+                    onClick={() => !editingItem && setModalTab('personal')}
+                    disabled={!!editingItem && modalTab !== 'personal'}
+                    className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${modalTab === 'personal' ? 'bg-white text-primary shadow-sm' : 'text-slate-500 hover:text-slate-900 disabled:opacity-50'}`}
+                  >
+                    Cá nhân
                   </button>
                 </div>
 
@@ -1320,31 +1507,92 @@ export default function App() {
                         </div>
                       </div>
                     </>
-                  ) : (
+                  ) : modalTab === 'card' ? (
                     <>
                       <Input 
                         label="Tên gợi nhớ" 
                         type="text" 
-                        defaultValue={editingItem?.title || ''}
+                        value={modalTitle}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalTitle(e.target.value)}
                         placeholder="Ví dụ: Visa Platinum" 
                       />
                       <Input 
                         label="Tên chủ thẻ" 
                         type="text" 
-                        defaultValue={editingItem?.cardHolder || ''}
+                        value={modalCardHolder}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalCardHolder(e.target.value)}
                         className="uppercase" 
                         placeholder="NGUYEN VAN A" 
                       />
                       <Input 
                         label="Số thẻ" 
                         type="text" 
-                        defaultValue={editingItem?.cardNumber || ''}
+                        value={modalCardNumber}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalCardNumber(e.target.value)}
                         placeholder="0000 0000 0000 0000" 
                       />
                       <div className="grid grid-cols-2 gap-4">
-                        <Input label="Hạn dùng" defaultValue={editingItem?.expiry || ''} placeholder="MM / YY" />
-                        <Input label="Mã CVV" type="password" placeholder="•••" />
+                        <Input
+                          label="Hạn dùng"
+                          value={modalCardExpiry}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalCardExpiry(e.target.value)}
+                          placeholder="MM / YY"
+                        />
+                        <Input
+                          label="Mã CVV"
+                          type="password"
+                          value={modalCardCvv}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalCardCvv(e.target.value)}
+                          placeholder="•••"
+                        />
                       </div>
+                    </>
+                  ) : (
+                    <>
+                      <Input
+                        label="Tên hồ sơ"
+                        type="text"
+                        value={modalTitle}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalTitle(e.target.value)}
+                        placeholder="Ví dụ: CCCD / Hộ chiếu"
+                      />
+                      <Input
+                        label="Họ và tên"
+                        type="text"
+                        value={modalPersonalFullName}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalPersonalFullName(e.target.value)}
+                        placeholder="Nguyen Van A"
+                      />
+                      <Input
+                        label="Mã định danh"
+                        type="text"
+                        value={modalPersonalId}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalPersonalId(e.target.value)}
+                        placeholder="012345678901"
+                      />
+                      <div className="grid grid-cols-2 gap-4">
+                        <Input
+                          label="Email"
+                          type="email"
+                          value={modalPersonalEmail}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalPersonalEmail(e.target.value)}
+                          placeholder="name@email.com"
+                        />
+                        <Input
+                          label="Số điện thoại"
+                          type="text"
+                          value={modalPersonalPhone}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalPersonalPhone(e.target.value)}
+                          placeholder="09xxxxxxxx"
+                        />
+                      </div>
+                      <Input
+                        label="Địa chỉ"
+                        type="text"
+                        value={modalPersonalAddress}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setModalPersonalAddress(e.target.value)}
+                        placeholder="Địa chỉ liên hệ"
+                      />
                     </>
                   )}
 
