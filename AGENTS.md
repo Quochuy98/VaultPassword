@@ -120,11 +120,6 @@ Keep existing animations and UI polish from Phase 1
 - Call verify to activate
 - On login: check mfa.listFactors, if TOTP exists -> show TOTP screen
 
-**Phase 6: Public Computer Mode**
-- When checkbox "Public computer" is checked on login:
-  - Set persistSession: false
-  - Auto logout after 30 minutes
-  - Clear encryption key immediately on logout/tab close
 
 ### Database Schema (Run in Supabase SQL Editor)
 

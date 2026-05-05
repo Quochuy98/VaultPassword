@@ -4,7 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { VaultGate } from './components/VaultGate';
 import { LandingPage } from './components/LandingPage';
 import { useAuth } from './context/AuthContext';
-import { decrypt, encrypt } from './lib/encryption';
+import { decrypt, deriveKeyFromPassword, encrypt, generateSalt, saltToBase64 } from './lib/encryption';
 import {
   addPassword,
   deletePassword,
@@ -545,7 +545,7 @@ function TwoFactorScreen() {
 
 export default function App() {
   const navigate = useNavigate();
-  const { user, signOut, supabase, vaultKey, lockVault } = useAuth();
+  const { user, signOut, supabase, vaultKey, lockVault, unlockVault } = useAuth();
   const [toast, setToast] = useState<{ message: string; kind: 'copy' | 'success' | 'error' } | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<VaultItem | null>(null);
@@ -558,6 +558,10 @@ export default function App() {
   const [modalLogin, setModalLogin] = useState('');
   const [modalPassword, setModalPassword] = useState('');
   const [modalNotes, setModalNotes] = useState('');
+  const [vaultPassCurrent, setVaultPassCurrent] = useState('');
+  const [vaultPassNext, setVaultPassNext] = useState('');
+  const [vaultPassConfirm, setVaultPassConfirm] = useState('');
+  const [changingVaultPass, setChangingVaultPass] = useState(false);
 
   // Sync modal tab with editing item type
   useEffect(() => {
@@ -733,6 +737,108 @@ export default function App() {
     setActiveMenuId(null);
     await refreshVaultItems();
     pushNotify('Đã xóa mục', 'success');
+  };
+
+  const handleChangeVaultPassword = async () => {
+    if (!user || !vaultKey) {
+      pushNotify('Vui lòng mở khóa vault trước khi đổi mật khẩu.', 'error');
+      return;
+    }
+    if (!vaultPassCurrent || !vaultPassNext) {
+      pushNotify('Vui lòng nhập đầy đủ mật khẩu hiện tại và mật khẩu mới.', 'error');
+      return;
+    }
+    if (vaultPassNext.length < 8) {
+      pushNotify('Mật khẩu vault mới cần tối thiểu 8 ký tự.', 'error');
+      return;
+    }
+    if (vaultPassNext !== vaultPassConfirm) {
+      pushNotify('Xác nhận mật khẩu vault mới không khớp.', 'error');
+      return;
+    }
+
+    setChangingVaultPass(true);
+    try {
+      const rowsResult = await getPasswords(supabase);
+      if (rowsResult.error) {
+        pushNotify(rowsResult.error.message, 'error');
+        return;
+      }
+
+      // Verify current vault password against existing salt metadata.
+      const { data: userData, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !userData.user) {
+        pushNotify(userErr?.message ?? 'Không thể xác thực người dùng hiện tại.', 'error');
+        return;
+      }
+      const currentSaltB64 = userData.user.user_metadata?.vault_salt as string | undefined;
+      if (!currentSaltB64) {
+        pushNotify('Vault chưa được thiết lập khóa hiện tại.', 'error');
+        return;
+      }
+      const verifiedCurrentKey = await deriveKeyFromPassword(
+        vaultPassCurrent,
+        Uint8Array.from(atob(currentSaltB64), (c) => c.charCodeAt(0)),
+      );
+
+      const newSalt = generateSalt();
+      const newKey = await deriveKeyFromPassword(vaultPassNext, newSalt);
+      const rows = rowsResult.data ?? [];
+
+      for (const row of rows) {
+        const plainPassword = await decrypt(
+          row.encrypted_password,
+          row.iv_password,
+          verifiedCurrentKey,
+        );
+        const encryptedPassword = await encrypt(plainPassword, newKey);
+
+        let encryptedNotes: string | null = null;
+        let ivNotes: string | null = null;
+        if (row.encrypted_notes && row.iv_notes) {
+          const plainNotes = await decrypt(row.encrypted_notes, row.iv_notes, verifiedCurrentKey);
+          const notesCipher = await encrypt(plainNotes, newKey);
+          encryptedNotes = notesCipher.ciphertext;
+          ivNotes = notesCipher.iv;
+        }
+
+        const { error } = await updatePassword(supabase, row.id, {
+          encrypted_password: encryptedPassword.ciphertext,
+          iv_password: encryptedPassword.iv,
+          encrypted_notes: encryptedNotes,
+          iv_notes: ivNotes,
+        });
+        if (error) {
+          pushNotify(error.message, 'error');
+          return;
+        }
+      }
+
+      const newSaltB64 = saltToBase64(newSalt);
+      const { error: updateUserErr } = await supabase.auth.updateUser({
+        data: { vault_salt: newSaltB64 },
+      });
+      if (updateUserErr) {
+        pushNotify(updateUserErr.message, 'error');
+        return;
+      }
+
+      const unlocked = await unlockVault(vaultPassNext);
+      if (unlocked.error) {
+        pushNotify(unlocked.error.message, 'error');
+        return;
+      }
+
+      setVaultPassCurrent('');
+      setVaultPassNext('');
+      setVaultPassConfirm('');
+      pushNotify('Đã đổi mật khẩu vault thành công.', 'success');
+      await refreshVaultItems();
+    } catch {
+      pushNotify('Đổi mật khẩu vault thất bại. Kiểm tra mật khẩu hiện tại.', 'error');
+    } finally {
+      setChangingVaultPass(false);
+    }
   };
 
   const userLabel = user?.email ?? user?.phone ?? 'Người dùng';
@@ -960,6 +1066,51 @@ export default function App() {
                   </div>
 
                   <div className="space-y-6">
+                    <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
+                      <div className="mb-6">
+                        <h3 className="text-xl font-bold flex items-center gap-3 text-slate-900">
+                          <Lock className="w-6 h-6 text-primary" />
+                          Đổi mật khẩu Vault
+                        </h3>
+                        <p className="text-sm text-slate-500 mt-1 font-medium">
+                          Mật khẩu vault dùng để giải mã dữ liệu đã mã hóa đầu-cuối của bạn.
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Input
+                          label="Mật khẩu Vault hiện tại"
+                          type="password"
+                          value={vaultPassCurrent}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVaultPassCurrent(e.target.value)}
+                          placeholder="••••••••"
+                        />
+                        <Input
+                          label="Mật khẩu Vault mới"
+                          type="password"
+                          value={vaultPassNext}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVaultPassNext(e.target.value)}
+                          placeholder="Tối thiểu 8 ký tự"
+                        />
+                        <Input
+                          label="Xác nhận mật khẩu mới"
+                          type="password"
+                          value={vaultPassConfirm}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => setVaultPassConfirm(e.target.value)}
+                          placeholder="Nhập lại mật khẩu mới"
+                        />
+                      </div>
+                      <div className="mt-5 flex justify-end">
+                        <Button
+                          type="button"
+                          onClick={() => void handleChangeVaultPassword()}
+                          disabled={changingVaultPass}
+                          className="px-8"
+                        >
+                          {changingVaultPass ? 'Đang cập nhật...' : 'Cập nhật mật khẩu Vault'}
+                        </Button>
+                      </div>
+                    </section>
+
                     <section className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8">
                       <div className="flex items-center justify-between mb-8">
                         <div>

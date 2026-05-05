@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
@@ -17,6 +18,8 @@ import {
 } from '../lib/encryption';
 
 const VAULT_SALT_META_KEY = 'vault_salt';
+const VAULT_UNLOCK_TTL_MS = 5 * 60 * 1000;
+const SESSION_TTL_MS = 60 * 60 * 1000;
 
 type AuthContextValue = {
   supabase: SupabaseClient;
@@ -49,6 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [authBusy, setAuthBusy] = useState(false);
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
+  const vaultLockTimerRef = useRef<number | null>(null);
+  const sessionTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +83,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const lockVault = useCallback(() => {
     setVaultKey(null);
   }, []);
+
+  useEffect(() => {
+    if (vaultLockTimerRef.current) {
+      window.clearTimeout(vaultLockTimerRef.current);
+      vaultLockTimerRef.current = null;
+    }
+    if (!vaultKey) {
+      return;
+    }
+    vaultLockTimerRef.current = window.setTimeout(() => {
+      setVaultKey(null);
+    }, VAULT_UNLOCK_TTL_MS);
+    return () => {
+      if (vaultLockTimerRef.current) {
+        window.clearTimeout(vaultLockTimerRef.current);
+        vaultLockTimerRef.current = null;
+      }
+    };
+  }, [vaultKey]);
 
   const unlockVault = useCallback(
     async (masterPassword: string) => {
@@ -207,6 +231,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSupabase(defaultClient);
     setSession(null);
   }, [supabase]);
+
+  useEffect(() => {
+    if (sessionTimeoutRef.current) {
+      window.clearTimeout(sessionTimeoutRef.current);
+      sessionTimeoutRef.current = null;
+    }
+    if (!session) {
+      return;
+    }
+    sessionTimeoutRef.current = window.setTimeout(() => {
+      void signOut();
+    }, SESSION_TTL_MS);
+    return () => {
+      if (sessionTimeoutRef.current) {
+        window.clearTimeout(sessionTimeoutRef.current);
+        sessionTimeoutRef.current = null;
+      }
+    };
+  }, [session, signOut]);
 
   const value = useMemo<AuthContextValue>(
     () => ({
