@@ -28,13 +28,12 @@ type AuthContextValue = {
   signIn: (
     email: string,
     password: string,
-    publicComputer: boolean,
   ) => Promise<{ error: Error | null }>;
   signUp: (
     email: string,
     password: string,
-    publicComputer: boolean,
   ) => Promise<{ error: Error | null; needsEmailConfirmation: boolean }>;
+  signInWithGoogle: () => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   unlockVault: (masterPassword: string) => Promise<{ error: Error | null }>;
   lockVault: () => void;
@@ -114,16 +113,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signIn = useCallback(
-    async (email: string, password: string, publicComputer: boolean) => {
+    async (email: string, password: string) => {
       setAuthBusy(true);
       try {
-        const persist = !publicComputer;
         const { data: existing } = await supabase.auth.getSession();
         if (existing.session) {
           await supabase.auth.signOut();
         }
 
-        const client = createSupabaseAuthClient(persist);
+        const client = createSupabaseAuthClient(true);
         const { data, error } = await client.auth.signInWithPassword({
           email,
           password,
@@ -147,16 +145,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signUp = useCallback(
-    async (email: string, password: string, publicComputer: boolean) => {
+    async (email: string, password: string) => {
       setAuthBusy(true);
       try {
-        const persist = !publicComputer;
         const { data: existing } = await supabase.auth.getSession();
         if (existing.session) {
           await supabase.auth.signOut();
         }
 
-        const client = createSupabaseAuthClient(persist);
+        const client = createSupabaseAuthClient(true);
         const { data, error } = await client.auth.signUp({ email, password });
 
         if (error) {
@@ -182,6 +179,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [supabase],
   );
 
+  const signInWithGoogle = useCallback(async () => {
+    setAuthBusy(true);
+    try {
+      const base = import.meta.env.BASE_URL || '/';
+      const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+      const redirectTo = `${window.location.origin}${normalizedBase}dashboard`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      if (error) {
+        return { error: new Error(error.message) };
+      }
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error('Đăng nhập Google thất bại') };
+    } finally {
+      setAuthBusy(false);
+    }
+  }, [supabase]);
+
   const signOut = useCallback(async () => {
     setVaultKey(null);
     await supabase.auth.signOut();
@@ -200,6 +218,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vaultKey,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
       unlockVault,
       lockVault,
@@ -212,6 +231,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vaultKey,
       signIn,
       signUp,
+      signInWithGoogle,
       signOut,
       unlockVault,
       lockVault,

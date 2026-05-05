@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { VaultGate } from './components/VaultGate';
+import { LandingPage } from './components/LandingPage';
 import { useAuth } from './context/AuthContext';
 import { decrypt, encrypt } from './lib/encryption';
 import {
@@ -124,14 +125,14 @@ const Input = ({ label, icon: Icon, error, ...props }: any) => (
   </div>
 );
 
-const Navbar = ({ onOpenSettings, currentTab, searchQuery, setSearchQuery, userLabel }: { onOpenSettings: () => void, currentTab: MainTab, searchQuery: string, setSearchQuery: (q: string) => void, userLabel: string }) => (
+const Navbar = ({ onOpenSettings, onGoDashboard, currentTab, searchQuery, setSearchQuery, userLabel }: { onOpenSettings: () => void, onGoDashboard: () => void, currentTab: MainTab, searchQuery: string, setSearchQuery: (q: string) => void, userLabel: string }) => (
   <nav className="sticky top-0 z-40 w-full bg-white border-b border-outline-variant/60 px-6 h-16 flex items-center justify-between shadow-sm">
-    <div className="flex items-center gap-3">
+    <button onClick={onGoDashboard} className="flex items-center gap-3">
       <div className="bg-primary text-white p-2 rounded-lg md:hidden">
         <ShieldCheck className="w-5 h-5" />
       </div>
       <span className="text-xl font-bold tracking-tight hidden md:block text-slate-900">VaultGuard</span>
-    </div>
+    </button>
     
     <div className="flex-1 max-w-xl mx-12 relative hidden md:block">
       <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -172,13 +173,13 @@ const Navbar = ({ onOpenSettings, currentTab, searchQuery, setSearchQuery, userL
   </nav>
 );
 
-const Sidebar = ({ currentTab, onSelectTab, onAddNew }: { currentTab: MainTab, onSelectTab: (tab: MainTab) => void, onAddNew: () => void }) => (
+const Sidebar = ({ currentTab, onSelectTab, onAddNew, onGoDashboard }: { currentTab: MainTab, onSelectTab: (tab: MainTab) => void, onAddNew: () => void, onGoDashboard: () => void }) => (
   <aside className="w-64 border-r border-outline-variant bg-white h-[calc(100vh-65px)] flex-col p-4 hidden md:flex sticky top-[65px]">
     <div className="mb-6 px-4 py-2">
-      <div className="flex items-center gap-3 mb-1">
+      <button onClick={onGoDashboard} className="flex items-center gap-3 mb-1">
         <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold">V</div>
         <span className="text-lg font-bold tracking-tight text-on-surface">VaultGuard</span>
-      </div>
+      </button>
       <p className="text-[10px] uppercase tracking-wider font-bold text-on-surface-variant/60">Quản lý bảo mật</p>
     </div>
     
@@ -251,11 +252,10 @@ function HomeRedirect() {
 
 function LoginScreen({ onNotify }: { onNotify: AuthNotify }) {
   const navigate = useNavigate();
-  const { session, loading, authBusy, signIn, signUp, unlockVault } = useAuth();
+  const { session, loading, authBusy, signIn, signUp, signInWithGoogle, unlockVault } = useAuth();
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [publicComputer, setPublicComputer] = useState(false);
 
   useEffect(() => {
     if (!loading && session) {
@@ -266,7 +266,7 @@ function LoginScreen({ onNotify }: { onNotify: AuthNotify }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (authMode === 'login') {
-      const { error } = await signIn(email, password, publicComputer);
+      const { error } = await signIn(email, password);
       if (error) {
         onNotify(error.message, 'error');
         return;
@@ -281,7 +281,7 @@ function LoginScreen({ onNotify }: { onNotify: AuthNotify }) {
       return;
     }
 
-    const { error, needsEmailConfirmation } = await signUp(email, password, publicComputer);
+    const { error, needsEmailConfirmation } = await signUp(email, password);
     if (error) {
       onNotify(error.message, 'error');
       return;
@@ -297,6 +297,13 @@ function LoginScreen({ onNotify }: { onNotify: AuthNotify }) {
     }
     onNotify('Đăng ký thành công', 'success');
     navigate('/dashboard', { replace: true });
+  };
+
+  const handleGoogleSignIn = async () => {
+    const { error } = await signInWithGoogle();
+    if (error) {
+      onNotify(error.message, 'error');
+    }
   };
 
   return (
@@ -373,24 +380,36 @@ function LoginScreen({ onNotify }: { onNotify: AuthNotify }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 py-1">
-              <input
-                type="checkbox"
-                id="publicComputer"
-                checked={publicComputer}
-                onChange={(e) => setPublicComputer(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
-              />
-              <label htmlFor="publicComputer" className="text-sm text-slate-500 font-medium cursor-pointer select-none">
-                Đây là máy tính công cộng (không ghi nhớ phiên đăng nhập)
-              </label>
-            </div>
-
             <Button type="submit" disabled={authBusy || loading} className="w-full py-4 text-lg h-[56px] gap-3">
               {authBusy ? 'Đang xử lý…' : authMode === 'login' ? 'Bắt đầu phiên làm việc' : 'Tạo tài khoản'}
               <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
             </Button>
           </form>
+
+          {authMode === 'login' && (
+            <>
+              <div className="my-6 flex items-center gap-4">
+                <div className="h-px bg-slate-200 flex-1" />
+                <span className="text-xs font-bold tracking-wider text-slate-400 uppercase">hoặc</span>
+                <div className="h-px bg-slate-200 flex-1" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full h-[52px] gap-3 font-bold"
+                onClick={() => void handleGoogleSignIn()}
+                disabled={authBusy || loading}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="w-5 h-5" aria-hidden="true">
+                  <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.654 32.657 29.226 36 24 36c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.155 7.959 3.041l5.657-5.657C34.047 6.053 29.277 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+                  <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.108 19.003 13 24 13c3.059 0 5.842 1.155 7.959 3.041l5.657-5.657C34.047 6.053 29.277 4 24 4c-7.732 0-14.41 4.389-17.694 10.691z"/>
+                  <path fill="#4CAF50" d="M24 44c5.176 0 9.86-1.977 13.409-5.197l-6.19-5.238C29.157 35.091 26.687 36 24 36c-5.204 0-9.618-3.316-11.283-7.946l-6.522 5.025C9.442 39.556 16.227 44 24 44z"/>
+                  <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303a12.05 12.05 0 0 1-4.084 5.565l.003-.002 6.19 5.238C36.971 39.205 44 34 44 24c0-1.341-.138-2.65-.389-3.917z"/>
+                </svg>
+                Đăng nhập bằng Google
+              </Button>
+            </>
+          )}
 
           <div className="mt-10 pt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-center items-center gap-2 text-sm">
             <p className="text-slate-500 font-medium">
@@ -742,13 +761,14 @@ export default function App() {
     >
       <Navbar
         onOpenSettings={() => navigate('/settings')}
+        onGoDashboard={() => navigate('/dashboard')}
         currentTab="dashboard"
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         userLabel={userLabel}
       />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentTab="dashboard" onSelectTab={goTab} onAddNew={handleAddNew} />
+        <Sidebar currentTab="dashboard" onSelectTab={goTab} onAddNew={handleAddNew} onGoDashboard={() => navigate('/dashboard')} />
               <main className="flex-1 overflow-y-auto p-6 md:p-8">
                 <div className="max-w-6xl mx-auto">
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -901,13 +921,14 @@ export default function App() {
     >
       <Navbar
         onOpenSettings={() => navigate('/settings')}
+        onGoDashboard={() => navigate('/dashboard')}
         currentTab="settings"
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         userLabel={userLabel}
       />
       <div className="flex flex-1 overflow-hidden">
-        <Sidebar currentTab="settings" onSelectTab={goTab} onAddNew={handleAddNew} />
+        <Sidebar currentTab="settings" onSelectTab={goTab} onAddNew={handleAddNew} onGoDashboard={() => navigate('/dashboard')} />
               <main className="flex-1 overflow-y-auto p-4 md:p-8">
                 <div className="max-w-4xl mx-auto space-y-8">
                   <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -1021,18 +1042,20 @@ export default function App() {
     </motion.div>
   );
 
+  const aboutPage = <LandingPage onStart={() => navigate('/login')} />;
+
   return (
     <div className="font-sans antialiased">
       <Routes>
         <Route path="/" element={<HomeRedirect />} />
+        <Route path="/about" element={aboutPage} />
         <Route path="/login" element={<LoginScreen onNotify={pushNotify} />} />
         <Route path="/2fa" element={<TwoFactorScreen />} />
         <Route element={<ProtectedRoute />}>
-
-        <Route path="/dashboard" element={dashboardPage} />
+          <Route element={<VaultGate />}>
+            <Route path="/dashboard" element={dashboardPage} />
             <Route path="/settings" element={settingsPage} />
-          {/* <Route element={<VaultGate />}>
-          </Route> */}
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
