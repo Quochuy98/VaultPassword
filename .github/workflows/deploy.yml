@@ -1,8 +1,8 @@
 # Deploy Vite + React to GitHub Pages
 # Repo: https://github.com/Quochuy98/VaultPassword
-# Live site (project Pages): https://quochuy98.github.io/VaultPassword/
+# Custom domain at root (e.g. p.quochuy.me): VITE_BASE_PATH=/ — open https://p.quochuy.me/ (not /VaultPassword/).
+# GitHub project Pages only: set VITE_BASE_PATH: /VaultPassword/ in the Build step env instead.
 # No repo URL is required in this file — runs in the repository that contains it.
-# Triggers: push to branch "deploy" (see vite.config.ts base: '/VaultPassword/')
 
 name: Deploy React App to Pages
 
@@ -40,6 +40,8 @@ jobs:
               run: npm ci
 
             - name: Build project (Vite → dist)
+              env:
+                  VITE_BASE_PATH: "/"
               run: npm run build
 
             - name: SPA fallback for GitHub Pages
