@@ -1,0 +1,6 @@
+{
+  "name": "VaultGuard",
+  "description": "A secure digital vault for managing passwords, credit cards, and sensitive notes with military-grade encryption.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
