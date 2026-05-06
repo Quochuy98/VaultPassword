@@ -1,5 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Copy, CreditCard, Edit, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
+import type { MouseEvent } from 'react';
+import { getSecretFieldMeta } from '../lib/secretField';
 import { Button, Navbar, Sidebar } from './AppShell';
 
 type VaultItem = {
@@ -30,7 +32,7 @@ type Props = {
   activeMenuId: string | null;
   setActiveMenuId: (value: string | null) => void;
   handleDeleteVaultItem: (id: string) => Promise<void>;
-  handleCopy: (e: React.MouseEvent, value: string | undefined) => void;
+  handleCopy: (e: MouseEvent, value: string | undefined) => void;
   maskSecret: (value: string | undefined, maxDots?: number) => string;
 };
 
@@ -95,8 +97,11 @@ export function DashboardPage({
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredItems.map((item) => (
-                  <motion.div
+                {filteredItems.map((item) => {
+                  const secretMeta = getSecretFieldMeta(item);
+
+                  return (
+                    <motion.div
                     key={item.id}
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -193,18 +198,22 @@ export function DashboardPage({
 
                     <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
                       <div className="flex-1 flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg text-xs text-slate-600 font-mono tracking-tight border border-slate-100 shadow-inner overflow-hidden">
-                        <span className="truncate">{maskSecret(item.password || item.cardNumber || item.personalId)}</span>
+                        <span className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 border border-slate-200">
+                          {secretMeta.label}
+                        </span>
+                        <span className="truncate">{secretMeta.kind === 'password' ? maskSecret(secretMeta.rawValue) : secretMeta.displayValue}</span>
                         <button
                           type="button"
-                          onClick={(e) => handleCopy(e, item.password || item.cardNumber || item.personalId)}
+                          onClick={(e) => handleCopy(e, secretMeta.rawValue || undefined)}
                           className="text-slate-400 hover:text-primary p-0.5 rounded transition-colors shrink-0 ml-auto"
                         >
                           <Copy className="w-3 h-3" />
                         </button>
                       </div>
                     </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             )}
           </div>

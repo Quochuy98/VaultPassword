@@ -1,6 +1,7 @@
 import type { ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Copy, Eye, EyeOff } from 'lucide-react';
+import { getMaskedSecretPreview, getSecretFieldMeta } from '../lib/secretField';
 import { Button, Input } from './AppShell';
 
 type VaultItemType = 'password' | 'card' | 'personal';
@@ -84,6 +85,12 @@ export function VaultItemModal({
   onCopyValue,
   handleSaveVault,
 }: Props) {
+  const secretFieldMeta = getSecretFieldMeta({
+    password: modalTab === 'password' ? modalPassword : undefined,
+    cardNumber: modalTab === 'card' ? modalCardNumber : undefined,
+    personalId: modalTab === 'personal' ? modalPersonalId : undefined,
+  });
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -99,7 +106,7 @@ export function VaultItemModal({
             initial={{ opacity: 0, scale: 0.9, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
-            className="relative w-full max-w-lg bg-white rounded-[2rem] shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
+            className="relative w-full max-w-lg bg-white rounded-4xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col"
           >
             <div className="p-8 space-y-6">
               <div className="flex p-1.5 bg-slate-100 rounded-xl">
@@ -127,6 +134,24 @@ export function VaultItemModal({
               </div>
 
               <div className="space-y-5">
+                <div className="flex items-center gap-2 bg-slate-50 px-3 py-2 rounded-lg text-xs text-slate-600 font-mono tracking-tight border border-slate-100 shadow-inner overflow-hidden">
+                  <span className="shrink-0 rounded-md bg-white px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 border border-slate-200">
+                    {secretFieldMeta.label}
+                  </span>
+                  <span className="truncate">
+                    {secretFieldMeta.kind === 'password'
+                      ? getMaskedSecretPreview(secretFieldMeta.rawValue)
+                      : secretFieldMeta.displayValue || 'Chưa có dữ liệu'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onCopyValue(secretFieldMeta.rawValue || undefined)}
+                    className="text-slate-400 hover:text-primary p-0.5 rounded transition-colors shrink-0 ml-auto"
+                  >
+                    <Copy className="w-3 h-3" />
+                  </button>
+                </div>
+
                 {modalTab === 'password' ? (
                   <>
                     <Input
