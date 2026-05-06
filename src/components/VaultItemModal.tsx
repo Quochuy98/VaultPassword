@@ -1,6 +1,6 @@
 import type { ChangeEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Eye, EyeOff } from 'lucide-react';
+import { Copy, Eye, EyeOff } from 'lucide-react';
 import { Button, Input } from './AppShell';
 
 type VaultItemType = 'password' | 'card' | 'personal';
@@ -43,6 +43,7 @@ type Props = {
   setModalPersonalAddress: (value: string) => void;
   modalNotes: string;
   setModalNotes: (value: string) => void;
+  onCopyValue: (value?: string) => void;
   handleSaveVault: () => Promise<void>;
 };
 
@@ -80,6 +81,7 @@ export function VaultItemModal({
   setModalPersonalAddress,
   modalNotes,
   setModalNotes,
+  onCopyValue,
   handleSaveVault,
 }: Props) {
   return (
@@ -133,6 +135,8 @@ export function VaultItemModal({
                       value={modalTitle}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalTitle(e.target.value)}
                       placeholder="Ví dụ: Tài khoản Google"
+                      copyValue={modalTitle}
+                      onCopy={onCopyValue}
                     />
                     <Input
                       label="Tên người dùng / Email"
@@ -140,26 +144,37 @@ export function VaultItemModal({
                       value={modalLogin}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalLogin(e.target.value)}
                       placeholder="name@email.com"
+                      copyValue={modalLogin}
+                      onCopy={onCopyValue}
                     />
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center px-1">
                         <label className="text-sm font-bold text-slate-700 tracking-tight">Mật khẩu</label>
-                        {!editingItem && (
+                        <div className="flex items-center gap-3">
                           <button
                             type="button"
-                            className="text-xs font-bold text-primary hover:underline transition-colors uppercase tracking-wider"
-                            onClick={() => {
-                              const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-                              let out = '';
-                              const arr = new Uint8Array(20);
-                              crypto.getRandomValues(arr);
-                              for (let i = 0; i < 20; i += 1) out += chars[arr[i] % chars.length];
-                              setModalPassword(out);
-                            }}
+                            className="text-xs font-bold text-slate-500 hover:text-primary transition-colors uppercase tracking-wider"
+                            onClick={() => onCopyValue(modalPassword)}
                           >
-                            Tạo ngẫu nhiên
+                            Sao chép
                           </button>
-                        )}
+                          {!editingItem && (
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-primary hover:underline transition-colors uppercase tracking-wider"
+                              onClick={() => {
+                                const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
+                                let out = '';
+                                const arr = new Uint8Array(20);
+                                crypto.getRandomValues(arr);
+                                for (let i = 0; i < 20; i += 1) out += chars[arr[i] % chars.length];
+                                setModalPassword(out);
+                              }}
+                            >
+                              Tạo ngẫu nhiên
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div className="relative group">
                         <input
@@ -169,13 +184,24 @@ export function VaultItemModal({
                           placeholder="••••••••"
                           className="w-full pl-4 pr-12 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm"
                         />
-                        <button
-                          type="button"
-                          onClick={() => setShowModalPassword((v) => !v)}
-                          className="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          {showModalPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                        </button>
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onCopyValue(modalPassword)}
+                            className="text-slate-400 hover:text-primary transition-colors p-1"
+                            aria-label="Copy password"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowModalPassword((v) => !v)}
+                            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            aria-label="Toggle password visibility"
+                          >
+                            {showModalPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </>
@@ -187,6 +213,8 @@ export function VaultItemModal({
                       value={modalTitle}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalTitle(e.target.value)}
                       placeholder="Ví dụ: Visa Platinum"
+                      copyValue={modalTitle}
+                      onCopy={onCopyValue}
                     />
                     <Input
                       label="Tên chủ thẻ"
@@ -195,6 +223,8 @@ export function VaultItemModal({
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalCardHolder(e.target.value)}
                       className="uppercase"
                       placeholder="NGUYEN VAN A"
+                      copyValue={modalCardHolder}
+                      onCopy={onCopyValue}
                     />
                     <Input
                       label="Số thẻ"
@@ -202,6 +232,8 @@ export function VaultItemModal({
                       value={modalCardNumber}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalCardNumber(e.target.value)}
                       placeholder="0000 0000 0000 0000"
+                      copyValue={modalCardNumber}
+                      onCopy={onCopyValue}
                     />
                     <div className="grid grid-cols-2 gap-4">
                       <Input
@@ -209,6 +241,8 @@ export function VaultItemModal({
                         value={modalCardExpiry}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setModalCardExpiry(e.target.value)}
                         placeholder="MM / YY"
+                        copyValue={modalCardExpiry}
+                        onCopy={onCopyValue}
                       />
                       <Input
                         label="Mã CVV"
@@ -216,6 +250,8 @@ export function VaultItemModal({
                         value={modalCardCvv}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setModalCardCvv(e.target.value)}
                         placeholder="•••"
+                        copyValue={modalCardCvv}
+                        onCopy={onCopyValue}
                       />
                     </div>
                   </>
@@ -227,6 +263,8 @@ export function VaultItemModal({
                       value={modalTitle}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalTitle(e.target.value)}
                       placeholder="Ví dụ: CCCD / Hộ chiếu"
+                      copyValue={modalTitle}
+                      onCopy={onCopyValue}
                     />
                     <Input
                       label="Họ và tên"
@@ -234,6 +272,8 @@ export function VaultItemModal({
                       value={modalPersonalFullName}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalPersonalFullName(e.target.value)}
                       placeholder="Nguyen Van A"
+                      copyValue={modalPersonalFullName}
+                      onCopy={onCopyValue}
                     />
                     <Input
                       label="Mã định danh"
@@ -241,6 +281,8 @@ export function VaultItemModal({
                       value={modalPersonalId}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalPersonalId(e.target.value)}
                       placeholder="012345678901"
+                      copyValue={modalPersonalId}
+                      onCopy={onCopyValue}
                     />
                     <div className="grid grid-cols-2 gap-4">
                       <Input
@@ -249,6 +291,8 @@ export function VaultItemModal({
                         value={modalPersonalEmail}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setModalPersonalEmail(e.target.value)}
                         placeholder="name@email.com"
+                        copyValue={modalPersonalEmail}
+                        onCopy={onCopyValue}
                       />
                       <Input
                         label="Số điện thoại"
@@ -256,6 +300,8 @@ export function VaultItemModal({
                         value={modalPersonalPhone}
                         onChange={(e: ChangeEvent<HTMLInputElement>) => setModalPersonalPhone(e.target.value)}
                         placeholder="09xxxxxxxx"
+                        copyValue={modalPersonalPhone}
+                        onCopy={onCopyValue}
                       />
                     </div>
                     <Input
@@ -264,12 +310,23 @@ export function VaultItemModal({
                       value={modalPersonalAddress}
                       onChange={(e: ChangeEvent<HTMLInputElement>) => setModalPersonalAddress(e.target.value)}
                       placeholder="Địa chỉ liên hệ"
+                      copyValue={modalPersonalAddress}
+                      onCopy={onCopyValue}
                     />
                   </>
                 )}
 
                 <div className="space-y-1.5 px-1">
-                  <label className="text-sm font-bold text-slate-700 tracking-tight">Ghi chú bổ sung</label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-bold text-slate-700 tracking-tight">Ghi chú bổ sung</label>
+                    <button
+                      type="button"
+                      onClick={() => onCopyValue(modalNotes)}
+                      className="text-xs font-bold text-slate-500 hover:text-primary transition-colors uppercase tracking-wider"
+                    >
+                      Sao chép
+                    </button>
+                  </div>
                   <textarea
                     value={modalNotes}
                     onChange={(e) => setModalNotes(e.target.value)}

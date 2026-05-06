@@ -330,6 +330,14 @@ export default function App() {
     setTimeout(() => setToast(null), TOAST_DURATION_MS);
   };
 
+  const handleCopyValue = (text?: string) => {
+    if (text) {
+      void navigator.clipboard.writeText(text);
+    }
+    setToast({ message: 'Đã sao chép vào bộ nhớ đệm', kind: 'copy' });
+    setTimeout(() => setToast(null), TOAST_DURATION_MS);
+  };
+
   const openEditModal = (item: VaultItem) => {
     setEditingItem(item);
     setIsModalOpen(true);
@@ -682,6 +690,7 @@ export default function App() {
         setModalPersonalAddress={setModalPersonalAddress}
         modalNotes={modalNotes}
         setModalNotes={setModalNotes}
+        onCopyValue={handleCopyValue}
         handleSaveVault={handleSaveVault}
       />
 

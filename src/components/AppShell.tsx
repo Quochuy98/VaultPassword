@@ -2,6 +2,7 @@ import React from 'react';
 import {
   Bell,
   Briefcase,
+  Copy,
   FileText,
   Plus,
   Search,
@@ -42,7 +43,7 @@ export const Button = ({
   );
 };
 
-export const Input = ({ label, icon: Icon, error, ...props }: any) => (
+export const Input = ({ label, icon: Icon, error, copyValue, onCopy, ...props }: any) => (
   <div className="w-full space-y-1.5">
     {label && <label className="text-sm font-bold text-slate-700 tracking-tight">{label}</label>}
     <div className="relative group">
@@ -52,9 +53,19 @@ export const Input = ({ label, icon: Icon, error, ...props }: any) => (
         </div>
       )}
       <input
-        className={`w-full ${Icon ? 'pl-10' : 'pl-4'} pr-4 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm ${error ? 'border-red-500 ring-red-500/10' : ''}`}
+        className={`w-full ${Icon ? 'pl-10' : 'pl-4'} ${onCopy ? 'pr-12' : 'pr-4'} py-3 bg-white border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm ${error ? 'border-red-500 ring-red-500/10' : ''}`}
         {...props}
       />
+      {onCopy && (
+        <button
+          type="button"
+          onClick={() => onCopy(copyValue)}
+          className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-primary transition-colors"
+          aria-label={`Copy ${label ?? 'field value'}`}
+        >
+          <Copy className="w-4 h-4" />
+        </button>
+      )}
     </div>
     {error && <p className="text-xs text-red-500 font-medium">{error}</p>}
   </div>
