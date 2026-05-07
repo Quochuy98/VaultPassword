@@ -123,62 +123,64 @@ export function DashboardPage({
                         )}
                       </div>
 
-                      {item.type === 'card' ? (
-                        <CreditCard className="w-5 h-5 text-slate-300" />
-                      ) : (
-                        <div className="flex -space-x-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary/30" />
+                      <div className="flex items-center gap-2">
+                        {item.type === 'card' ? (
+                          <CreditCard className="w-5 h-5 text-slate-300" />
+                        ) : (
+                          <div className="flex -space-x-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/30" />
+                          </div>
+                        )}
+
+                        <div className="relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuId(activeMenuId === item.id ? null : item.id);
+                            }}
+                            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
+
+                          <AnimatePresence>
+                            {activeMenuId === item.id && (
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.95, y: -10 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 overflow-hidden"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  onClick={() => {
+                                    openEditModal(item);
+                                    setActiveMenuId(null);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-medium"
+                                >
+                                  <Edit className="w-4 h-4 text-slate-400" />
+                                  Chỉnh sửa
+                                </button>
+                                <div className="h-px bg-slate-100 my-1" />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveMenuId(null);
+                                    void handleDeleteVaultItem(item.id);
+                                  }}
+                                  className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Xóa mục
+                                </button>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                      )}
-
-                      <div className="relative">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setActiveMenuId(activeMenuId === item.id ? null : item.id);
-                          }}
-                          className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          <MoreHorizontal className="w-5 h-5" />
-                        </button>
-
-                        <AnimatePresence>
-                          {activeMenuId === item.id && (
-                            <motion.div
-                              initial={{ opacity: 0, scale: 0.95, y: -10 }}
-                              animate={{ opacity: 1, scale: 1, y: 0 }}
-                              exit={{ opacity: 0, scale: 0.95, y: -10 }}
-                              className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 overflow-hidden"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <button
-                                onClick={() => {
-                                  openEditModal(item);
-                                  setActiveMenuId(null);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors font-medium"
-                              >
-                                <Edit className="w-4 h-4 text-slate-400" />
-                                Chỉnh sửa
-                              </button>
-                              <div className="h-px bg-slate-100 my-1" />
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuId(null);
-                                  void handleDeleteVaultItem(item.id);
-                                }}
-                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors font-medium"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                Xóa mục
-                              </button>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
                       </div>
                     </div>
 
