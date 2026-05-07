@@ -251,15 +251,47 @@ export function VaultItemModal({
                       copyValue={modalCardHolder}
                       onCopy={onCopyValue}
                     />
-                    <Input
-                      label="Số thẻ"
-                      type="text"
-                      value={modalCardNumber}
-                      onChange={(e: ChangeEvent<HTMLInputElement>) => setModalCardNumber(e.target.value)}
-                      placeholder="0000 0000 0000 0000"
-                      copyValue={modalCardNumber}
-                      onCopy={onCopyValue}
-                    />
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center px-1">
+                        <label className="text-sm font-bold text-slate-700 tracking-tight">Số thẻ</label>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            className="text-xs font-bold text-slate-500 hover:text-primary transition-colors uppercase tracking-wider"
+                            onClick={() => onCopyValue(modalCardNumber)}
+                          >
+                            Sao chép
+                          </button>
+                        </div>
+                      </div>
+                      <div className="relative group">
+                        <input
+                          type={showModalPassword ? 'text' : 'password'}
+                          value={modalCardNumber}
+                          onChange={(e) => setModalCardNumber(e.target.value)}
+                          placeholder="0000 0000 0000 0000"
+                          className="w-full pl-4 pr-12 py-3 bg-white border border-slate-200 rounded-xl text-slate-900 focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all outline-none shadow-sm"
+                        />
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => onCopyValue(modalCardNumber)}
+                            className="text-slate-400 hover:text-primary transition-colors p-1"
+                            aria-label="Copy card number"
+                          >
+                            <Copy className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowModalPassword((v) => !v)}
+                            className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            aria-label="Toggle card number visibility"
+                          >
+                            {showModalPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-4">
                       <Input
                         label="Hạn dùng"
