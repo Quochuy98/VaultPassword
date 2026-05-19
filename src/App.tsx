@@ -90,7 +90,7 @@ export default function App() {
   const [vaultPassNext, setVaultPassNext] = useState('');
   const [vaultPassConfirm, setVaultPassConfirm] = useState('');
   const [changingVaultPass, setChangingVaultPass] = useState(false);
-  const { vaultItems, vaultLoading, refreshVaultItems, saveVaultItem, deleteVaultItem } =
+  const { vaultItems, vaultLoading, saveVaultItem, deleteVaultItem } =
     useVaultItems({
       user,
       vaultKey,
